@@ -57,6 +57,29 @@ internal object PlayerScreenLogic {
         return sb.toString().trimEnd()
     }
 
+    /**
+     * 音乐区判定：tid 3（音乐）及其全部子分区。详情接口返回的分区名 tname 常为空，
+     * 且音乐区视频携带的是子分区 id 而非音乐分区 id（3），因此以已知子分区 id
+     * 集合为主，分区名含"音乐"作兜底（B 站新增子分区时仍能命中）。
+     */
+    private val MUSIC_ZONE_TIDS = setOf(
+        3,   // 音乐
+        28,  // 原创音乐
+        29,  // 三次元音乐
+        30,  // VOCALOID·UTAU
+        31,  // 翻唱
+        59,  // 演奏
+        130, // 音乐综合
+        193, // MV
+        194  // 电音
+    )
+
+    fun isMusicZone(view: VideoView?): Boolean {
+        val video = view ?: return false
+        if (video.tid in MUSIC_ZONE_TIDS) return true
+        return video.tname.contains("音乐")
+    }
+
     /** 调试浮层文案；返回 null 表示应隐藏。 */
     fun debugOverlayText(
         showDebugInfo: Boolean,

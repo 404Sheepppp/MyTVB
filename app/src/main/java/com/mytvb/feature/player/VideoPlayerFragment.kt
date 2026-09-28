@@ -843,6 +843,10 @@ class VideoPlayerFragment : Fragment() {
             override fun onDmEnableChange(enabled: Boolean) {
                 playerView.setDanmakuEnabled(enabled)
             }
+
+            override fun onPlaybackSpeedClick() {
+                playerView.showPlaybackSpeedSettingView()
+            }
         })
         playerView.onUserSeekListener = { positionMs ->
             viewModel.sponsorUserSeek(positionMs)
@@ -1028,6 +1032,7 @@ class VideoPlayerFragment : Fragment() {
                         ensureDouyinQueueStarted()
                         schedulePreloadAndHeaderRefresh()
                         updatePrimaryActionVisibility()
+                        applyMusicZoneDefaultSpeedIfNeeded(info)
                     }
                 }
 
@@ -1331,7 +1336,11 @@ class VideoPlayerFragment : Fragment() {
     }
 
     private fun applyPlayerSettings(settings: PlayerSettings) {
-        playerView.setPlaySpeed(settings.defaultPlaybackSpeed)
+        // 音乐区 1 倍速开关打开且当前是音乐区视频时，忽略默认倍速配置
+        val musicZoneNormalSpeed = settings.musicZoneNormalSpeed &&
+            PlayerScreenLogic.isMusicZone(latestVideoInfo?.view)
+        playerView.setPlaySpeed(if (musicZoneNormalSpeed) 1f else settings.defaultPlaybackSpeed)
+        playerView.showPlaybackRateIndicator(settings.showPlaybackRate)
         playerView.setSeekSecond(settings.fastSeekSeconds)
         playerView.setSimpleKeyPressEnabled(settings.simpleKeyPress)
         playerView.setPersistentBottomProgressEnabled(settings.showBottomProgressBar)
@@ -1341,6 +1350,7 @@ class VideoPlayerFragment : Fragment() {
         renderDebugState()
         updateEpisodeNavigationVisibility()
         updateDanmakuSwitchVisibility()
+        updatePlaySpeedButtonVisibility()
         renderControllerChrome()
     }
 
@@ -1416,6 +1426,26 @@ class VideoPlayerFragment : Fragment() {
     private fun updateDanmakuSwitchVisibility() {
         val hasDanmaku = viewModel.danmaku.value.orEmpty().isNotEmpty()
         playerView.showHideDmSwitchButton(playerSettings.showDanmakuSwitch && hasDanmaku)
+    }
+
+    /** 播放速度按键：设置开关打开即常驻显示在控制栏。 */
+    private fun updatePlaySpeedButtonVisibility() {
+        if (!::playerSettings.isInitialized) return
+        playerView.showHidePlaySpeedButton(playerSettings.showPlaySpeedButton)
+    }
+
+    private var lastVideoKeyForMusicSpeed: String? = null
+
+    /** 音乐区视频起播默认 1 倍速：开关打开且视频属音乐区时生效，每个视频只应用一次。 */
+    private fun applyMusicZoneDefaultSpeedIfNeeded(info: VideoDetailModel?) {
+        val view = info?.view ?: return
+        val key = "${view.bvid}:${view.cid}"
+        if (key == lastVideoKeyForMusicSpeed) return
+        lastVideoKeyForMusicSpeed = key
+        if (!::playerSettings.isInitialized || !playerSettings.musicZoneNormalSpeed) return
+        AppLog.d(TAG, "MusicZoneSpeed tid=${view.tid} isMusic=${PlayerScreenLogic.isMusicZone(view)}")
+        if (!PlayerScreenLogic.isMusicZone(view)) return
+        playerView.setPlaySpeed(1f)
     }
 
     private fun updatePrimaryActionVisibility() {
